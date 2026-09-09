@@ -50,6 +50,16 @@ Sumber fase: `docs/KTK - Development Plan.md` §2.
 
 ## Log
 
+## [2026-09-09] — Fase 2 (polish): ActivityCard mengikuti prototype KTKMobileApp
+- **Status:** Done
+- **Perubahan:**
+  - `activity_card.dart` — layout diromah mengikuti `KTKMobileApp/src/App.tsx` (prototype): latar kartu **putih** (AppT.surface) alih-alih cream, radius 14, dua baris (ikon+nama+kategori+caret di atas; angka days-since besar kiri + tombol log 54×54 kanan), label hari berwarna senada angka (10px, tracking 0.14), state belum-dicatat jadi teks italic "Belum pernah dicatat...", tombol log radius 10 dengan shadow mengecil saat just-logged (pressed look), panel button shadow 2px.
+  - **Animasi expand smooth**: `AnimatedSize` (tinggi tumbuh/mengecil 250ms easeOut, ClipRect) + `AnimatedSwitcher` (fade + slide -8% konten) — menggantikan if/else muncul-hilang instan; caret berputar via `AnimatedRotation`.
+  - `app_tokens.dart` — token `shadowXs` (2px) untuk tombol kecil/pressed.
+  - Test disesuaikan: ekspektasi panel kini `RATA-RATA: ~13 HARI` (format rapi, bukan campur dengan TERAKHIR).
+- **Keputusan:** nilai desain kartu mengikuti prototype secara 1:1 — prototype adalah sumber kebenaran visual (design.md), sementara layout dua baris + caret meniru interaksi web yang sudah divalidasi. `design.md` §7 akan dipicu update bila ada deviasi lain.
+- **Verifikasi:** `flutter analyze` (0 issues) · `flutter test` (35 pass / 0 fail) · `dart format` bersih
+
 ## [2026-09-09] — Fase 2 (fix): FAB mati + tombol sheet nyangkut saat DB gagal init
 - **Status:** Done
 - **Perubahan:**

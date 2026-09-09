@@ -74,6 +74,12 @@ abstract final class AppT {
     BoxShadow(offset: Offset(3, 3), blurRadius: 0, color: ink),
   ];
 
+  /// Pressed / tiny shadow — quick-log button saat just-logged, panel
+  /// buttons (prototype: "2px 2px 0px #1A1A1A").
+  static const List<BoxShadow> shadowXs = [
+    BoxShadow(offset: Offset(2, 2), blurRadius: 0, color: ink),
+  ];
+
   /// Just-logged state shadow (green).
   static const List<BoxShadow> shadowGreen = [
     BoxShadow(offset: Offset(5, 5), blurRadius: 0, color: green),

@@ -123,3 +123,62 @@ Color daysSinceColor(int days) {
   if (days <= 30) return AppT.orange;
   return AppT.red;
 }
+
+/// Parses `#RRGGBB` (as stored in the categories table) to a [Color].
+/// Unknown/malformed values fall back to [AppT.inkMute].
+Color colorFromHex(String hex) {
+  final raw = hex.replaceFirst('#', '').trim();
+  final v = int.tryParse(raw, radix: 16);
+  if (v == null || raw.length != 6) return AppT.inkMute;
+  return Color(0xFF000000 | v);
+}
+
+/// Label kategori Indonesia (design.md §2). Kategori >10 (kustom, Fase
+/// lanjut) tidak punya mapping — fallback ke 'Lainnya'.
+const Map<int, String> categoryLabels = {
+  1: 'Maintenance',
+  2: 'Rumah',
+  3: 'Perawatan',
+  4: 'Kesehatan',
+  5: 'Keuangan',
+  6: 'Digital',
+  7: 'Sosial',
+  8: 'Admin',
+  9: 'Kendaraan',
+  10: 'Lainnya',
+};
+
+String categoryLabel(int id) => categoryLabels[id] ?? 'Lainnya';
+
+/// Emoji kategori (design.md §2) untuk chip filter & label kartu.
+const Map<int, String> categoryEmojis = {
+  1: '🔧',
+  2: '🏠',
+  3: '💆',
+  4: '💊',
+  5: '💰',
+  6: '💻',
+  7: '👥',
+  8: '📋',
+  9: '🚗',
+  10: '📌',
+};
+
+String categoryEmoji(int id) => categoryEmojis[id] ?? '📌';
+
+/// Hex warna kategori (design.md §2) — sumber tunggal untuk chip filter &
+/// label kartu. DB menyimpan nilai yang sama di tabel categories.
+const Map<int, String> categoryHexes = {
+  1: '#FB6F3D',
+  2: '#C49A00',
+  3: '#E63946',
+  4: '#2DC653',
+  5: '#2D6CDB',
+  6: '#7B61FF',
+  7: '#FF6B6B',
+  8: '#4A4A4A',
+  9: '#27AE60',
+  10: '#888888',
+};
+
+String categoryHex(int id) => categoryHexes[id] ?? '#888888';

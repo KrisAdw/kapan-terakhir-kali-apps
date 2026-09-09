@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:ktk/core/db/app_database.dart';
 import 'package:ktk/core/design/app_tokens.dart';
 import 'package:ktk/core/widgets/clock_mascot.dart';
+import 'package:ktk/data/di.dart';
 import 'package:ktk/features/splash/splash_screen.dart';
 import 'package:ktk/main.dart';
 
@@ -62,16 +64,26 @@ void main() {
   });
 
   group('AppShell navigation (design.md §9)', () {
-    testWidgets('starts on Beranda and switches between all 4 tabs', (
+    testWidgets('starts on Beranda (Home) and switches between all 4 tabs', (
       tester,
     ) async {
-      await tester.pumpWidget(const ProviderScope(child: KtkApp()));
+      final db = AppDatabase.inMemory();
+      addTearDown(db.close);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          // Override DB agar test tidak menyentuh plugin path_provider.
+          overrides: [databaseProvider.overrideWith((ref) async => db)],
+          child: const KtkApp(),
+        ),
+      );
       // Skip the 2.3s splash.
       await tester.pump(const Duration(milliseconds: 2301));
+      await tester.pumpAndSettle();
 
-      // Header shows the current tab title; nav labels are uppercase.
-      expect(find.text('Beranda'), findsOneWidget);
-      expect(find.text('BERANDA'), findsOneWidget);
+      // Beranda = HomeScreen: chip filter + empty state (DB kosong).
+      expect(find.text('Semua'), findsOneWidget);
+      expect(find.textContaining('masih kosong melompong'), findsOneWidget);
 
       await tester.tap(find.text('INSIGHT'));
       await tester.pumpAndSettle();
@@ -87,7 +99,7 @@ void main() {
 
       await tester.tap(find.text('BERANDA'));
       await tester.pumpAndSettle();
-      expect(find.text('Beranda'), findsOneWidget);
+      expect(find.text('Semua'), findsOneWidget);
     });
   });
 }

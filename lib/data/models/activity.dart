@@ -36,6 +36,7 @@ final class Activity {
     required this.createdAt,
     required this.lastLoggedAt,
     required this.logCount,
+    this.avgIntervalDays,
   });
 
   /// UUID v4 (SRS §4).
@@ -64,6 +65,10 @@ final class Activity {
   /// Jumlah riwayat tersimpan (untuk gating tampilan 5 entri, FR-002).
   final int logCount;
 
+  /// Rata-rata selisih hari antar log (expanded card, design.md §7).
+  /// Null jika < 2 log. Dihitung di SQL (julianday) agar murah.
+  final double? avgIntervalDays;
+
   /// Selisih hari kalender lokal (SRS §3.1) — null jika belum ada log.
   int? daysSince({DateTime? now}) =>
       lastLoggedAt == null ? null : day_math.daysSince(lastLoggedAt!, now: now);
@@ -84,7 +89,8 @@ final class Activity {
           other.reminderTone == reminderTone &&
           other.createdAt == createdAt &&
           other.lastLoggedAt == lastLoggedAt &&
-          other.logCount == logCount;
+          other.logCount == logCount &&
+          other.avgIntervalDays == avgIntervalDays;
 
   @override
   int get hashCode => Object.hash(
@@ -98,6 +104,7 @@ final class Activity {
     createdAt,
     lastLoggedAt,
     logCount,
+    avgIntervalDays,
   );
 }
 

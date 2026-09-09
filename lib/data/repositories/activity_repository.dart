@@ -8,10 +8,11 @@ import '../models/activity.dart';
 
 /// All data access for activities and their logs — the only SQL consumer.
 ///
-/// [watchAllActivities] re-queries on a short interval so the home screen
-/// stays reactive; the write path itself is a single indexed INSERT, well
-/// under the 500 ms budget (SRS §5). Timestamps cross the DB boundary as
-/// epoch milliseconds (see `AppDatabase` docs).
+/// Reactivity (SRS §1.2): [watchAllActivities] re-emits when (a) any write
+/// happens through this repository (instant, same-frame UX for quick log)
+/// or (b) the local calendar day rolls over at midnight — so days-since
+/// counters stay correct without pulling to refresh (PRD §7). Data changes
+/// are diffed; the 30 s timer tick alone never reaches the UI.
 final class ActivityRepository {
   ActivityRepository(this._db, {DateTime Function()? clock})
     : _clock = clock ?? DateTime.now;
@@ -21,38 +22,87 @@ final class ActivityRepository {
   final AppDatabase _db;
   final DateTime Function() _clock;
 
+  /// Bumped on every write — wakes all active listeners immediately.
+  int _writeEpoch = 0;
+
+  /// Broadcast ping on every write — active [watchAllActivities] listeners
+  /// re-emit instantly (< 500 ms UX budget, SRS §5).
+  final StreamController<int> _writeSignals = StreamController<int>.broadcast();
+
+  /// Lets the ViewModel layer (quick log, sheets) trigger an instant
+  /// re-emit — used right after writes made through this instance.
+  void notifyOnWrite() {
+    _writeEpoch++;
+    _writeSignals.add(_writeEpoch);
+  }
+
   // ── Queries ──────────────────────────────────────────────────────────
 
-  /// Home dashboard stream: every activity with its last-log date and
-  /// history count. Re-emits at most every 250 ms after a change.
+  /// Home dashboard stream: every activity with its last-log date, history
+  /// count, and average interval (mean of consecutive gaps =
+  /// (max−min)/(n−1), computed in SQL — telescoping identity).
   Stream<List<Activity>> watchAllActivities() {
     late StreamController<List<Activity>> controller;
-    Timer? timer;
+    Timer? tickTimer;
+    Timer? midnightTimer;
+    StreamSubscription<int>? writeSub;
+    var lastSeenEpoch = -1;
+    var lastDay = _clock().day;
     List<Activity>? last;
 
     Future<void> emit() async {
+      final now = _clock();
+      final dayChanged = now.day != lastDay;
+      final wrote = _writeEpoch != lastSeenEpoch;
+      if (!wrote && !dayChanged && last != null) return;
+      lastSeenEpoch = _writeEpoch;
+      lastDay = now.day;
+
       final rows = _queryActivities();
-      if (last == null || _listChanged(last!, rows)) {
+      if (last == null || dayChanged || _listChanged(last!, rows)) {
         last = rows;
         controller.add(rows);
       }
     }
 
+    void startTimers() {
+      // Instant refresh on writes made through this repository.
+      writeSub ??= _writeSignals.stream.listen((_) => emit());
+      // Safety net for out-of-app changes (v1: single process, cheap).
+      tickTimer ??= Timer.periodic(const Duration(seconds: 30), (_) => emit());
+      // Refresh exactly at local midnight so counters flip to the new day
+      // without pull-to-refresh (PRD §7).
+      final now = _clock();
+      final nextMidnight = DateTime(now.year, now.month, now.day + 1);
+      midnightTimer = Timer(
+        nextMidnight.difference(now) + const Duration(milliseconds: 50),
+        () {
+          emit();
+          startTimers();
+        },
+      );
+    }
+
     controller = StreamController<List<Activity>>(
       onListen: () async {
         await emit();
-        timer = Timer.periodic(const Duration(milliseconds: 250), (_) {
-          if (!controller.isClosed) emit();
-        });
+        startTimers();
       },
-      onPause: () => timer?.cancel(),
+      onPause: () {
+        tickTimer?.cancel();
+        midnightTimer?.cancel();
+      },
       onResume: () async {
         await emit();
-        timer = Timer.periodic(const Duration(milliseconds: 250), (_) {
-          if (!controller.isClosed) emit();
-        });
+        startTimers();
       },
-      onCancel: () => timer?.cancel(),
+      onCancel: () {
+        writeSub?.cancel();
+        writeSub = null;
+        tickTimer?.cancel();
+        tickTimer = null;
+        midnightTimer?.cancel();
+      },
     );
     return controller.stream;
   }
@@ -61,7 +111,12 @@ final class ActivityRepository {
     final rows = _db.select('''
       SELECT a.id, a.name, a.category_id, a.icon, a.is_reminder_active,
              a.reminder_interval, a.reminder_tone, a.created_at,
-             COUNT(l.id) AS log_count, MAX(l.logged_at) AS last_logged_at
+             COUNT(l.id) AS log_count,
+             MAX(l.logged_at) AS last_logged_at,
+             CASE WHEN COUNT(*) > 1
+               THEN (MAX(l.logged_at) - MIN(l.logged_at)) * 1.0
+                    / (COUNT(*) - 1) / 86400000.0
+             END AS avg_interval
       FROM activities a
       LEFT JOIN logs l ON l.activity_id = a.id
       GROUP BY a.id
@@ -121,6 +176,7 @@ final class ActivityRepository {
         now.millisecondsSinceEpoch,
       ],
     );
+    notifyOnWrite();
     return Activity(
       id: id,
       name: name,
@@ -158,6 +214,7 @@ final class ActivityRepository {
       'INSERT INTO logs (id, activity_id, logged_at, notes) VALUES (?, ?, ?, ?);',
       [entry.id, entry.activityId, at.millisecondsSinceEpoch, notes],
     );
+    notifyOnWrite();
     return entry;
   }
 
@@ -169,14 +226,57 @@ final class ActivityRepository {
     DateTime? loggedAt,
   }) => addLog(activityId, loggedAt: loggedAt, notes: notes);
 
+  /// Edit aktivitas (swipe-to-edit / form, PRD §7). Reminder fields only
+  /// take effect for Premium in Fase 5+; persisted already so the form
+  /// survives plan upgrades.
+  Future<void> updateActivity(
+    String activityId, {
+    String? name,
+    int? categoryId,
+    String? icon,
+    bool? isReminderActive,
+    int? reminderInterval,
+    ReminderTone? reminderTone,
+  }) {
+    final sets = <String>[];
+    final args = <Object?>[];
+    void set(String col, Object? value) {
+      sets.add('$col = ?');
+      args.add(value);
+    }
+
+    if (name != null) set('name', name);
+    if (categoryId != null) set('category_id', categoryId);
+    if (icon != null) set('icon', icon);
+    if (isReminderActive != null) {
+      set('is_reminder_active', isReminderActive ? 1 : 0);
+    }
+    if (reminderInterval != null) {
+      set('reminder_interval', reminderInterval);
+    }
+    if (reminderTone != null) {
+      set('reminder_tone', reminderTone.dbValue);
+    }
+    if (sets.isEmpty) {
+      return Future.value();
+    }
+
+    args.add(activityId);
+    _db.execute('UPDATE activities SET ${sets.join(', ')} WHERE id = ?;', args);
+    notifyOnWrite();
+    return Future.value();
+  }
+
   /// Hapus satu entri riwayat (tombol hapus di detail, PRD §7).
   Future<void> deleteLog(String logId) async {
     _db.execute('DELETE FROM logs WHERE id = ?;', [logId]);
+    notifyOnWrite();
   }
 
   /// Deletes the card AND all its history via ON DELETE CASCADE (SRS §3.3).
   Future<void> deleteActivity(String activityId) async {
     _db.execute('DELETE FROM activities WHERE id = ?;', [activityId]);
+    notifyOnWrite();
   }
 
   // ── Categories ───────────────────────────────────────────────────────
@@ -197,6 +297,7 @@ final class ActivityRepository {
 
   Activity _rowToActivity(Map<String, Object?> r) {
     final lastMs = r['last_logged_at'] as int?;
+    final avg = r['avg_interval'] as num?;
     return Activity(
       id: r['id'] as String,
       name: r['name'] as String,
@@ -212,6 +313,7 @@ final class ActivityRepository {
           ? null
           : DateTime.fromMillisecondsSinceEpoch(lastMs),
       logCount: r['log_count'] as int,
+      avgIntervalDays: avg?.toDouble(),
     );
   }
 

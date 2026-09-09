@@ -39,7 +39,7 @@ Sumber fase: `docs/KTK - Development Plan.md` §2.
 |---|---|---|
 | 0 | Foundation & App Shell | ✅ Selesai (2026-09-09) |
 | 1 | Data Layer (SQLite) | ✅ Selesai (2026-09-09) |
-| 2 | Home: Days-Since & Quick Log | Belum mulai |
+| 2 | Home: Days-Since & Quick Log | ✅ Selesai (2026-09-09) |
 | 3 | Detail Activity | Belum mulai |
 | 4 | Add/Edit Activity Form | Belum mulai |
 | 5 | Local Notifications | Belum mulai |
@@ -49,6 +49,38 @@ Sumber fase: `docs/KTK - Development Plan.md` §2.
 | 9 | Widgets, Polish & Release Prep | Belum mulai |
 
 ## Log
+
+## [2026-09-09] — Fase 2 (fix): FAB mati + tombol sheet nyangkut saat DB gagal init
+- **Status:** Done
+- **Perubahan:**
+  - `home_screen.dart` — FAB "+" diganti `_KtkFab` custom (GestureDetector + kuning + border ink + hard shadow 5px): sebelumnya `FloatingActionButton` dengan `elevation: 0` tampak seperti item statis; error state kini punya hint full rebuild + tombol Coba Lagi meng-invalidate `databaseProvider`
+  - `add_activity_sheet.dart` — `_save()` dibungkus try/catch: exception dari init DB (mis. `MissingPluginException` karena plugin ditambahkan setelah build terakhir tanpa full rebuild) tidak lagi membuat tombol Simpan nyangkut di "Nyimpen..." selamanya; error ditampilkan inline
+  - `quick_update_sheet.dart` — sama: catch umum selain TimeTravelException, reset `_saving` + snackbar
+- **Keputusan:** akar masalah dilaporkan user (FAB tak bisa diklik + skeleton lama → error state) adalah kombinasi (1) styling FAB yang datar, dan (2) DB init gagal karena APK lama tidak mengenal plugin native baru (`path_provider`/`sqlite3_flutter_libs`) — perlu **full rebuild**, hot reload/restart tidak meregistrasi plugin. Kode kini tahan banting: sheet tidak pernah nyangkut dan error state menjelaskan recovery.
+- **Perubahan (lanjutan, UI glitch shadow):**
+  - `ktk_sheet.dart` (KtkPrimaryButton) + `home_screen.dart` (Coba Lagi) — fill dipindah dari `Material` ke `BoxDecoration` container: shadow ink kini terpaint DI BELAKANG fill (BoxDecoration menggambar shadow dulu, lalu fill-nya sendiri). Sebelumnya fill ada di Material di bawahnya dan shadow decoration terpaint di atasnya → menutupi hampir seluruh permukaan tombol "Simpan".
+- **Verifikasi:** `flutter analyze` (0 issues) · `flutter test` (35 pass / 0 fail) · `dart format` bersih
+
+## [2026-09-09] — Fase 2: Home — Days-Since & Quick Log
+- **Status:** Done
+- **Perubahan:**
+  - `lib/features/home/home_screen.dart` — SCR-01 Main Dashboard: pencarian instan, filter kategori horizontal, daftar kartu, FAB "+"; state empty (mascot + copy PRD §7), loading (shimmer), error, no-match
+  - `lib/features/home/widgets/activity_card.dart` — ActivityCard design.md §7: angka days-since Caveat 64 warna state, tombol quick log 54×54 (kuning→hijau), animasi just-logged ("DICATAT. AMAN.", 1.6 s), accordion expanded panel (tanggal terakhir + rata-rata + Log Manual/Detail), swipe-to-delete dengan dialog konfirmasi, haptic feedback
+  - `lib/features/home/widgets/quick_update_sheet.dart` — SCR-02 Quick Update (SRS §2.1.2): date+time picker untuk backfill, notes terkunci Premium (gembok, paywall Fase 7)
+  - `lib/features/home/widgets/add_activity_sheet.dart` — quick-add: nama, chip 10 kategori, pilihan emoji ikon
+  - `lib/features/home/widgets/category_chip_bar.dart` — chip "Semua" + 10 kategori (aktif = ink/cream)
+  - `lib/features/home/viewmodels/home_viewmodel.dart` — Riverpod: homeFilter, homeSearch, activitiesStream, justLoggedIds, HomeController (quickLog/createActivity/delete/rename) + `applyHomeFilters` murni untuk test
+  - `lib/core/widgets/ktk_sheet.dart` — container bottom sheet neo-brutalism reusable + KtkPrimaryButton
+  - `lib/core/utils/date_format.dart` — format tanggal Indonesia ("SEN, 8 SEP")
+  - Repository di-upgrade: `avg_interval` dihitung di SQL (identitas telescoping), stream berbasis **write-signal broadcast** (re-emit instan setelah write) + tick 30 dtk + re-emit tepat tengah malam (days-since berganti hari tanpa pull-to-refresh), `updateActivity`, `notifyOnWrite`
+  - `lib/app/app_shell.dart` — tab Beranda kini HomeScreen (IndexedStack); tab lain placeholder
+  - Test: +12 (total 35 hijau) — filter/search, quick log end-to-end, cascade via controller, render kartu, interaksi quick log & expand, chip filter
+- **Keputusan:**
+  - Stream UI = re-query berbasis sinyal (write broadcast + timer + midnight tick), bukan SQL watch: murah, deterministik di test, dan tetap di bawah budget 500 ms SRS §5. Naikkan ke drift-watch-style bila skala data menuntut.
+  - Just-logged state disimpan sebagai `Set<String>` id di provider dengan timer 1.6 s per kartu (bukan di model) — animasi murni concern UI.
+  - Detail screen masih placeholder (Fase 3); tombol "Detail →" menampilkan snackbar.
+  - `StateProvider` dari `flutter_riverpod/legacy.dart` (Riverpod 3 memindahkannya; Notifier menyusul bila state makin kompleks).
+- **Verifikasi:** `flutter analyze` (0 issues) · `flutter test` (35 pass / 0 fail) · `dart format` bersih
 
 ## [2026-09-09] — Fase 1: Data Layer (SQLite)
 - **Status:** Done

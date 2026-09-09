@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/design/app_tokens.dart';
+import '../../features/home/home_screen.dart';
 
 /// Bottom-nav tabs (design.md §9). Order: Beranda · Insight · Profil · Pengaturan.
 enum AppTab { home, insight, profile, settings }
@@ -28,45 +29,66 @@ final class _AppShellState extends ConsumerState<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    // Home punya Scaffold sendiri (FAB, dsb.); tab lain masih placeholder.
+    final body = IndexedStack(
+      index: _tab.index,
+      children: [
+        const HomeScreen(),
+        for (final tab in AppTab.values.skip(1))
+          _PlaceholderScreen(title: _titles[tab]!),
+      ],
+    );
+
     return Scaffold(
       backgroundColor: AppT.cream,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                _titles[_tab]!,
-                style: const TextStyle(
-                  fontFamily: AppT.fontDisplay,
-                  fontSize: 36,
-                  fontWeight: FontWeight.w700,
-                  color: AppT.ink,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: Center(
-                  child: Text(
-                    'Fase 0 — kerangka siap.\n'
-                    'Fitur "${_titles[_tab]}" menyusul di fase berikutnya.',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontFamily: AppT.fontBody,
-                      fontSize: 14,
-                      color: AppT.inkSoft,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      body: body,
       bottomNavigationBar: _BottomNav(
         current: _tab,
         onChanged: (tab) => setState(() => _tab = tab),
+      ),
+    );
+  }
+}
+
+/// Placeholder tab yang belum diimplementasikan.
+final class _PlaceholderScreen extends StatelessWidget {
+  const _PlaceholderScreen({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontFamily: AppT.fontDisplay,
+                fontSize: 36,
+                fontWeight: FontWeight.w700,
+                color: AppT.ink,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: Center(
+                child: Text(
+                  'Fitur "$title" menyusul di fase berikutnya.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontFamily: AppT.fontBody,
+                    fontSize: 14,
+                    color: AppT.inkSoft,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

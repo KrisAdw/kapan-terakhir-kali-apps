@@ -39,13 +39,13 @@ Roadmap lengkap: [`docs/KTK - Development Plan.md`](../docs/) di workspace, log 
 | Kebutuhan | Pilihan | Catatan |
 |---|---|---|
 | Framework | **Flutter 3.47 / Dart ^3.13.2** | Satu codebase untuk Android 8.0+ & iOS 15+ |
-| Database lokal | **drift** (SQLite) | Skema relasional `Activity 1:N Log` dengan `ON DELETE CASCADE` + indeks; query reaktif via stream |
+| Database lokal | **sqlite3** (SQLite langsung, tanpa codegen) | Skema relasional `Activity 1:N Log` dengan `ON DELETE CASCADE` + indeks `IDX_LOG_*`; stream reaktif untuk UI |
 | State management | **flutter_riverpod** | Implementasi MVVM + Repository (ViewModel = Notifier) |
 | Notifikasi lokal | `flutter_local_notifications` + `timezone` | Android `AlarmManager` / iOS `UNUserNotificationCenter` — tanpa server |
 | In-app purchase | `in_app_purchase` | Play Billing & StoreKit 2, verifikasi lokal |
 | Font | **Caveat + DM Sans** (bundled, bukan google_fonts) | Offline penuh sejak first launch |
 | Backup | Enkripsi AES-256 → file `.ktkbackup` | Restore = dekripsi + validasi + transaksi tunggal |
-| Testing | `flutter_test` + drift in-memory DB | Unit test logika inti + widget test layar |
+| Testing | `flutter_test` + SQLite in-memory | Unit test logika inti + widget test layar |
 
 Library ditambahkan bertahap per fase — apa pun yang masuk wajib lulus aturan **zero-network** (lihat di bawah).
 

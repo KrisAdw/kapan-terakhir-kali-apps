@@ -38,7 +38,7 @@ Sumber fase: `docs/KTK - Development Plan.md` §2.
 | Fase | Nama | Status |
 |---|---|---|
 | 0 | Foundation & App Shell | ✅ Selesai (2026-09-09) |
-| 1 | Data Layer (drift) | Belum mulai |
+| 1 | Data Layer (SQLite) | ✅ Selesai (2026-09-09) |
 | 2 | Home: Days-Since & Quick Log | Belum mulai |
 | 3 | Detail Activity | Belum mulai |
 | 4 | Add/Edit Activity Form | Belum mulai |
@@ -49,6 +49,24 @@ Sumber fase: `docs/KTK - Development Plan.md` §2.
 | 9 | Widgets, Polish & Release Prep | Belum mulai |
 
 ## Log
+
+## [2026-09-09] — Fase 1: Data Layer (SQLite)
+- **Status:** Done
+- **Perubahan:**
+  - `lib/core/utils/days_since.dart` — kalkulasi selisih hari kalender lokal (SRS §3.1)
+  - `lib/core/utils/log_guard.dart` — time-travel guard + copy "mesin waktu" (SRS §6.1)
+  - `lib/core/db/app_database.dart` — SQLite via `sqlite3` langsung: skema SRS §4 (activities/logs/categories/user_profiles), indeks `IDX_LOG_*`, FK `ON DELETE CASCADE`, `PRAGMA foreign_keys = ON`, WAL, seed 10 kategori, helper transaksi, konstruktor in-memory untuk test
+  - `lib/core/db/standard_categories.dart` — 10 kategori standar (emoji+warna) + konstanta `kHealthCategoryId`
+  - `lib/data/models/activity.dart` — `Activity`, `LogEntry`, `Category`, enum `ReminderTone` & `SubscriptionPlan`
+  - `lib/data/repositories/activity_repository.dart` — `watchAllActivities` (stream reaktif 250 ms), createActivity, addLog (dengan guard), addLogWithNotes, deleteLog, deleteActivity (cascade), categories
+  - `lib/data/di.dart` — FutureProvider database + repository
+  - `test/data_layer_test.dart` — 18 test baru (total 23 hijau): days-since, guard, seed kategori, CRUD, cascade delete, pragma FK, stream
+- **Keputusan (penting):**
+  - **Pivot drift → sqlite3 langsung.** Codegen drift konsisten menghasilkan 0 file `.g.dart` di semua kombinasi yang dicoba (drift 2.34/2.20, build_runner 2.16/2.15/2.4.13, AOT/JIT, folder project bersih di /tmp). Diagnostik menunjukkan analyzer drift sukses (`drift_elements.json` berisi seluruh tabel) namun tahap penulisan output `.part`/`.g.dart` tidak pernah terjadi — bug lingkungan build. Raw `sqlite3` menghapus seluruh kebutuhan codegen; skema, indeks, cascade, dan budget performa SRS tetap terpenuhi 1:1. Tercatat di SRS §7 (v1.2.0) & Development Plan §0.
+  - Timestamp disimpan sebagai INTEGER epoch-millis (jam lokal), dikonversi balik saat baca.
+  - Stream home memakai re-query terjadwal 250 ms (bukan SQL watch) — cukup untuk budget 500 ms dan skala data MVP; naikkan ke reactive stream bila perlu.
+  - Dep dihapus: drift, drift_dev, build_runner. Dep baru: sqlite3, path.
+- **Verifikasi:** `flutter analyze` (0 issues) · `flutter test` (23 pass / 0 fail) · `dart format` bersih
 
 ## [2026-09-09] — Docs: README.md ditulis ulang untuk repo GitHub
 - **Status:** Done

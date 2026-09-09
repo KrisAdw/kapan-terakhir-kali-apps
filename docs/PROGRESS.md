@@ -50,6 +50,16 @@ Sumber fase: `docs/KTK - Development Plan.md` §2.
 
 ## Log
 
+## [2026-09-09] — Docs: README.md ditulis ulang untuk repo GitHub
+- **Status:** Done
+- **Perubahan:**
+  - `README.md` scaffold default diganti dokumentasi lengkap: deskripsi produk, tabel fitur vs status fase, tech stack (drift + Riverpod + rencana paket), arsitektur folder, getting started, perintah wajib, ringkasan design rules, dan aturan kontribusi
+  - Repo GitHub terhubung: `KrisAdw/kapan-terakhir-kali-apps` (branch `main`)
+- **Keputusan:**
+  - Tabel status fitur di README sengaja menunjuk status fase (bukan tanggal) agar tidak duplikasi sumber kebenaran — status detail tetap di PROGRESS.md & Development Plan
+  - Lisensi dinyatakan proprietary sampai file LICENSE dibuat
+- **Verifikasi:** — (docs only)
+
 ## [2026-09-09] — Fase 0: Foundation & App Shell
 - **Status:** Done
 - **Perubahan:**
